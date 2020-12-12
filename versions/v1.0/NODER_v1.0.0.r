@@ -1,11 +1,11 @@
-#################
-## functions.R ##
-#################
+#############
+## NODER.R ##
+#############
 
 ## goal: declare all functions involved in the NODE fitting process
 
 ## update
-## 12-12-2020 - created NODER_v1.0.5.r
+## 12-12-2020 - created NODER_v1.0.0.r
 
 
 ##############
