@@ -1,0 +1,189 @@
+################
+## analysis.R ##
+################
+
+## goal: analyse the results of the NODE fit to real simulated time series
+## (i) visualise the fit to the time series
+## (ii) compute and visualise direct effects on p.c. of hare and lynx (Jacobian)
+## (iii) compute and visualise direct contributions on p.c. of hare and lynx (Geber method)
+## (iv) visualise p.c. growth rate of hare and lynx (SLP bifurcation on hare and lynx density)
+
+##############
+## INITIATE ##
+##############
+
+## initiate
+source("2-initiate.R")
+
+## load ensemble
+ensemble <- read.table("out/ensemble.csv",sep=";",header=T)
+
+## filter only 25% best ensemble elements
+threshold <- quantile(ensemble[,1],probs=0.25)
+Omega_ <- ensemble[ensemble[,1]<threshold,-1]
+print(dim(ensemble))
+print(dim(Omega_))
+
+#
+###
+
+######################################
+## DIRECT EFFECTS AND CONTRIBUTIONS ##
+######################################
+
+## goal: compute and visualise (i) the fit of the NODE systems, (ii) direct effects and (iii) contributions to the p.c. growth rates of hare and lynx (SLPs)
+
+## time steps and limits of the hare and lynx density
+t <- seq(0,max(Y[,1]),0.25)
+lims <- c(min(Y[,-1]),max(Y[,-1]))
+#
+## compute predicted states (NODE fit)
+Ybar_ <- apply(Omega_,1,function(x)t(Ybar(t,as.matrix(Y[1,-1]),x))) # simulate NODE for all elements of the ensemble
+Ybar_mean <- matrix(apply(Ybar_,1,mean),byrow=T,ncol=3) # ensemble average
+Ybar_lo <- matrix(apply(Ybar_,1,function(x)quantile(probs=0.05,x)),byrow=T,ncol=3) # 5% quantile
+Ybar_25 <- matrix(apply(Ybar_,1,function(x)quantile(probs=0.25,x)),byrow=T,ncol=3) # 25% quantile
+Ybar_75 <- matrix(apply(Ybar_,1,function(x)quantile(probs=0.75,x)),byrow=T,ncol=3) # 75% quantile
+Ybar_hi <- matrix(apply(Ybar_,1,function(x)quantile(probs=0.95,x)),byrow=T,ncol=3) # 95% quantile
+#
+## compute direct effects on p.c. growth rates (Jacobian)
+Jbar_ <- apply(Omega_,1,function(x)Jbar(t,as.matrix(Y[1,-1]),x)) # compute Jacobian for all time steps and ensemble elements
+Jbar_mean <- matrix(apply(Jbar_,1,mean),byrow=T,ncol=4) # ensemble average
+Jbar_lo <- matrix(apply(Jbar_,1,function(x)quantile(probs=0.05,x)),byrow=T,ncol=4) # 5% quantile
+Jbar_25 <- matrix(apply(Jbar_,1,function(x)quantile(probs=0.25,x)),byrow=T,ncol=4) # 25% quantile
+Jbar_75 <- matrix(apply(Jbar_,1,function(x)quantile(probs=0.75,x)),byrow=T,ncol=4) # 75% quantile
+Jbar_hi <- matrix(apply(Jbar_,1,function(x)quantile(probs=0.95,x)),byrow=T,ncol=4) # 95% quantile
+#
+## compute contributions to p.c. growth rates (Geber method)
+Cbar_ <- apply(Omega_,1,function(x)Cbar(t,as.matrix(Y[1,-1]),x)) # compute contributions for all time steps and ensemble elements
+Cbar_mean <- matrix(apply(Cbar_,1,mean),byrow=T,ncol=4) # ensemble average
+Cbar_lo <- matrix(apply(Cbar_,1,function(x)quantile(probs=0.05,x)),byrow=T,ncol=4) # 5% quantile
+Cbar_25 <- matrix(apply(Cbar_,1,function(x)quantile(probs=0.25,x)),byrow=T,ncol=4) # 25% quantile
+Cbar_75 <- matrix(apply(Cbar_,1,function(x)quantile(probs=0.75,x)),byrow=T,ncol=4) # 75% quantile
+Cbar_hi <- matrix(apply(Cbar_,1,function(x)quantile(probs=0.95,x)),byrow=T,ncol=4) # 95% quantile
+
+## plots
+pdf("out/plots/figure_4.pdf")
+#
+par(mfrow=c(3,2))
+#
+## hare dynamics
+i <- 2
+plot(Y[,1],Y[,i],ylim=c(min(Ybar_lo[,i]),max(Ybar_hi[,i])),xlab="Time",ylab="Density",main="a.") # data
+polygon(c(t,rev(t)),c(Ybar_lo[,i],rev(Ybar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Ybar_25[,i],rev(Ybar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Ybar_mean[,i],col="red") # NODE predictions
+#
+## lynx dynamics
+i <- 3
+plot(Y[,1],Y[,i],ylim=c(min(Ybar_lo[,i]),max(Ybar_hi[,i])),xlab="Time",ylab="Density",main="b.") # data
+polygon(c(t,rev(t)),c(Ybar_lo[,i],rev(Ybar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Ybar_25[,i],rev(Ybar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Ybar_mean[,i],col="red") # NODE predictions
+#
+## direct effects on hare p.c. growth (Jacobian elements)
+i <- 1
+plot(t,Jbar_mean[,i],ylim=c(min(Jbar_lo[,c(i,i+1)]),max(Jbar_hi[,c(i,i+1)])),cex=0,xlab="Time",ylab="Effect",main="c.")
+lines(c(0,max(t)),c(0,0),lty=2) # 0
+#
+polygon(c(t,rev(t)),c(Jbar_lo[,i],rev(Jbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Jbar_25[,i],rev(Jbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Jbar_mean[,i],col="black") # intra-specific effect
+#
+i <- 2
+polygon(c(t,rev(t)),c(Jbar_lo[,i],rev(Jbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Jbar_25[,i],rev(Jbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Jbar_mean[,i],col="red") # inter-specific effect
+#
+## direct effects on p.c. lynx growth (Jacobian elements)
+i <- 3
+plot(t,Jbar_mean[,i],ylim=c(min(Jbar_lo[,c(i,i+1)]),max(Jbar_hi[,c(i,i+1)])),cex=0,xlab="Time",ylab="Effect",main="d.")
+lines(c(0,max(t)),c(0,0),lty=2) # 0
+#
+polygon(c(t,rev(t)),c(Jbar_lo[,i],rev(Jbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Jbar_25[,i],rev(Jbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Jbar_mean[,i],col="red") # inter-specific effect
+#
+i <- 4
+polygon(c(t,rev(t)),c(Jbar_lo[,i],rev(Jbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Jbar_25[,i],rev(Jbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Jbar_mean[,i],col="black") # intra-specific effect
+#
+## contributions to hare p.c. growth rate (Geber method)
+i <- 1
+plot(t,Cbar_mean[,i],ylim=c(min(Cbar_lo[,c(i,i+1)]),max(Cbar_hi[,c(i,i+1)])),cex=0,xlab="Time",ylab="Contribution",,main="e.")
+lines(c(0,max(t)),c(0,0),lty=2) # 0
+#
+polygon(c(t,rev(t)),c(Cbar_lo[,i],rev(Cbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Cbar_25[,i],rev(Cbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Cbar_mean[,i],col="black") # intra-specific contribution
+#
+i <- 2
+polygon(c(t,rev(t)),c(Cbar_lo[,i],rev(Cbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Cbar_25[,i],rev(Cbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Cbar_mean[,i],col="red") # inter-specific contribution
+#
+## contributions to lynx p.c. growth rate (Geber method)
+i <- 3
+plot(t,Cbar_mean[,i],ylim=c(min(Cbar_lo[,c(i,i+1)]),max(Cbar_hi[,c(i,i+1)])),cex=0,xlab="Time",ylab="Contribution",,main="f.")
+lines(c(0,max(t)),c(0,0),lty=2) # 0
+#
+polygon(c(t,rev(t)),c(Cbar_lo[,i],rev(Cbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Cbar_25[,i],rev(Cbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Cbar_mean[,i],col="red") # inter-specific contribution
+#
+i <- 4
+polygon(c(t,rev(t)),c(Cbar_lo[,i],rev(Cbar_hi[,i])),col=grey(0.5,0.2),border=NA) # 5-95% quantile range
+polygon(c(t,rev(t)),c(Cbar_25[,i],rev(Cbar_75[,i])),col=grey(0.5,0.4),border=NA) # 25-75% quantile range
+lines(t,Cbar_mean[,i],col="black") # intra-specific contribution
+#
+par(mfrow=c(1,1))
+#
+dev.off()
+
+#
+###
+
+#################################
+## VISUALISE P.C. GROWTH RATES ##
+#################################
+
+## goal: (iv) visualise SLP approximations of the p.c. growth rates of hare and lynx
+
+pdf("out/plots/figure_5.pdf",height=10,width=5)
+#
+par(mfrow=c(4,2))
+#
+## visualise changes in p.c. growth rates every 10 year
+for(t in c(0,10,20,30))
+{
+
+  ## evaluate SLPs over combinations of hare and lynx density
+  xlims <- c(min(Y[,2]),max(Y[,2])) # limits of hare density
+  ylims <- c(min(Y[,3]),max(Y[,3])) # limits of lynx density
+  lims <- rbind(xlims,ylims) 
+  SLPMat_ <- apply(Omega_,1,function(X)SLPMat(t,xlims,ylims,X)) # evaluate SLP for every combination of hare and lynx density
+  SLPMat_mean <- matrix(apply(SLPMat_,1,mean),byrow=T,ncol=2) # ensemble average
+  
+  ## heatmap plots of SLP approximations of p.c. growth rates
+  #
+  ## scale data (to add to heatmaps below)
+  Y_ <- Y[,-1]
+  Y_[,1] <- (Y_[,1]-lims[1,1])/(lims[1,2]-lims[1,1])
+  Y_[,2] <- (Y_[,2]-lims[2,1])/(lims[2,2]-lims[2,1])
+  #
+  ## SLP approximation of hare p.c. growth rate
+  .heatmat(t(matrix(SLPMat_mean[,1],ncol=101)),lims=lims,labs=c("Hare density","Lynx density"),main=paste("t = ",t,sep=""))
+  points(Y_[,1],Y_[,2],pch=1)
+  #
+  ## SLP approximation of lynx p.c. growth rate
+  .heatmat(t(matrix(SLPMat_mean[,2],ncol=101)),lims=lims,labs=c("Hare density","Lynx density"),main=paste("t = ",t,sep=""))
+  points(Y_[,1],Y_[,2],pch=1)
+
+}
+#
+par(mfrow=c(1,1))
+#
+dev.off()
+
+#
+###
