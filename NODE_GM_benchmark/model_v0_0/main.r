@@ -12,7 +12,7 @@
 ##############
 
 ## import NODE functions
-source("https://raw.githubusercontent.com/WillemBonnaffe/NODER/master/versions/v1.0/NODER_v1.0.1.r")
+source("https://raw.githubusercontent.com/WillemBonnaffe/NODER/Branch_1/versions/v1.0/NODER_v1.0.1.r")
 
 #
 ###
@@ -101,37 +101,20 @@ NODE.J = function(state,OmegaList)
 ## NODE FIT ##
 ##############
 
-## prefit with LASSO/Ridge regression
-# of dYdt operator on raw time differences from time series
-error.prefit = function(Omega)
-{
-  .error.LR(Y      =  TS.timedifferentiate(M0$TS)[,-1],
-            X      =  M0$TS[-M0$n,],
-            f      =  function(X,param){t(apply(X,1,function(x)M0$.Ydot(x,param)[-1]))},
-            param  = Omega,
-            lambda = 0.001,
-            alpha  = 1
-            )[[1]]
-}
-Omega = rnorm(M0$D-(M0$N-1),0,0.1); print(error.prefit(Omega))
-optList = .fit(Omega,error.prefit,10)
-Omega = optList$par
-
-# ## prefit with normal bayesian
+# ## prefit with LASSO/Ridge regression
 # # of dYdt operator on raw time differences from time series
 # error.prefit = function(Omega)
 # {
-#   -.error.normalBayesian(Y        = TS.timedifferentiate(M0$TS)[,-1],
-#                         X         = M0$TS[-M0$n,],
-#                         f         = function(X,param){t(apply(X,1,function(x)M0$.Ydot(x,param)[-1]))},
-#                         param     = Omega,
-#                         sd_lik    = sd_lik,
-#                         mu_prior  = mu_prior,
-#                         sd_prior  = sd_prior
-#                         )[[1]] 
+#   .error.LR(Y      =  TS.timedifferentiate(M0$TS)[,-1],
+#             X      =  M0$TS[-M0$n,],
+#             f      =  function(X,param){t(apply(X,1,function(x)M0$.Ydot(x,param)[-1]))},
+#             param  = Omega,
+#             lambda = 0.001,
+#             alpha  = 1
+#             )[[1]]
 # }
 # Omega = rnorm(M0$D-(M0$N-1),0,0.1); print(error.prefit(Omega))
-# optList = .fit(Omega,error.prefit,100)
+# optList = .fit(Omega,error.prefit,10)
 # Omega = optList$par
 
 ## fit
@@ -146,9 +129,10 @@ error.fit = function(Omega)
                          sd_prior  = sd_prior
                          )[[1]]
 } 
-M0$Theta = c(mu_prior_states,Omega) # Theta = rnorm(M0$D,0,0.01)
+M0$Theta = c(mu_prior_states,rnorm(M0$D-(M0$N-1),0,0.001)) # Theta = rnorm(M0$D,0,0.01)
+# load("model.RData")
 error.fit(M0$Theta)
-optList = .fit(M0$Theta,error.fit,100)
+optList = .fit(M0$Theta,error.fit,1000)
 M0$Theta = optList$par
 
 ## estimate error with ABC
