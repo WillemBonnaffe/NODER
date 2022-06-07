@@ -12,7 +12,7 @@
 ##############
 
 ## import NODE functions
-source("https://raw.githubusercontent.com/WillemBonnaffe/NODER/master/versions/v1.0/NODER_v1.0.0.r")
+source("https://raw.githubusercontent.com/WillemBonnaffe/NODER/master/versions/v1.0/NODER_v1.0.1.r")
 
 #
 ###
@@ -27,7 +27,9 @@ TS = read.table("data/TS_3DLV.csv",sep=";",header=T)
 ## format time series
 colnames(TS) = c("t","R","G","B") # compact names
 TS = TS[20:50,]
-TS_ = TS.format(TS,c(2,3,4))    # log transform and standardise
+# TS_ = TS.format(TS,c(2,3,4))    # log transform and standardise
+TS[,1] = TS[,1] - min(TS[,1])
+TS_  = TS
 
 ## initiate model
 M0 = NODE.init(TS=TS_,
@@ -55,6 +57,43 @@ sd_prior_states  = as.vector(t(apply(M0$TS[,-1],2,sd))) # set sd_prior_states to
 sd_prior_network = rep(sd_prior_network,M0$dimVect[-1]) 
 sd_prior         = c(sd_prior_states,sd_prior_network)
 
+# ## custom NODE system
+# ## goal: NODE equation system with each NODE being defined as a SLP, i.e. Ydot_i = SLP_i(state,Omega)
+# NODE.Ydot = function(state,OmegaList)
+# {	
+#   Ydot = 1 # i = 1 is time => dY/dt[1] = 1
+#   for(i in 2:N) 
+#   {
+#     Ydot[i] = SLP(state[M0$SLPinputStateList[[i]]],OmegaList[[i]],M0$SLPspecMat[i,],M0$SLPfsigmaList[[i]])*state[i]
+#   }
+#   return(Ydot)
+# }
+# M0$NODE.Ydot = NODE.Ydot
+
+## custom NODE Ydot
+## goal: NODE equation system with each NODE being defined as a SLP, i.e. Ydot_i = SLP_i(state,Omega)
+NODE.Ydot = function(state,OmegaList)
+{	
+  Ydot    = 1 # i = 1 is time => dY/dt[1] = 1
+  Ydot[2] = (SLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),f_sigmaList[[1]])+SLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),f_sigmaList[[5]]))*state[2]
+  Ydot[3] = (SLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),f_sigmaList[[1]])+SLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),f_sigmaList[[5]]))*state[3]
+  Ydot[4] = (SLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),f_sigmaList[[1]])+SLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),f_sigmaList[[5]]))*state[4]
+  return(Ydot)
+}
+M0$NODE.Ydot = NODE.Ydot
+M0$D = M0$D*2
+
+## custom NODE.J
+## goal: compute Jacobian matrix associated withe the NODE system above, i.e. J = [d(dY_i/dt)/dY_j]_ij 
+NODE.J = function(state,OmegaList)
+{	
+  J = matrix(0,N,N) # i = 1 is time => J[1,] = d(dY/dt_1)/dY_1, d(dY/dt_1)/dY[2], ... = 0
+  J[2,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),df_sigmaList[[5]])
+  J[3,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),df_sigmaList[[5]])
+  J[4,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),df_sigmaList[[5]])
+  return(J)
+}
+
 #
 ###
 
@@ -74,8 +113,8 @@ error.prefit = function(Omega)
             alpha  = 1
             )[[1]]
 }
-Omega = rnorm(M0$D-(M0$N-1),0,0.01); print(error.prefit(Omega))
-optList = .fit(Omega,error.prefit,20)
+Omega = rnorm(M0$D-(M0$N-1),0,0.1); print(error.prefit(Omega))
+optList = .fit(Omega,error.prefit,10)
 Omega = optList$par
 
 # ## prefit with normal bayesian
@@ -96,7 +135,6 @@ Omega = optList$par
 # Omega = optList$par
 
 ## fit
-Theta = c(mu_prior_states,Omega) # Theta = rnorm(M0$D,0,0.01)
 error.fit = function(Omega)
 {
   -.error.normalBayesian(Y         = M0$TS[,-1],
@@ -108,12 +146,13 @@ error.fit = function(Omega)
                          sd_prior  = sd_prior
                          )[[1]]
 } 
-error.fit(Theta)
-optList = .fit(Theta,error.fit,100)
+M0$Theta = c(mu_prior_states,Omega) # Theta = rnorm(M0$D,0,0.01)
+error.fit(M0$Theta)
+optList = .fit(M0$Theta,error.fit,100)
 M0$Theta = optList$par
 
 ## estimate error with ABC
-chainList = .ABC(M0$Theta,error.fit,1000,noise=0.001,threshold=0.5)
+chainList = .ABC(M0$Theta,error.fit,10,noise=0.001,threshold=0.5)
 M0$chain = chainList$chain
 
 ## save model
@@ -143,7 +182,7 @@ res = M0$TS[,-1] - M0$.Ybar.ode(M0$TS[,1],Y_0,Omega)[,-1]
 r2 = 1-sd(t(res))^2/sd(t(M0$TS[,-1]))^2
 
 ## compute approximated posterior distribution
-t = seq(0,20,1)
+t = seq(0,30,1)
 #
 ## states
 Ybar.ensemble = apply(M0$chain[,-1],1,function(x)M0$.Ybar.ode(t,x[M0$i_init],x[-M0$i_init]))
@@ -211,24 +250,24 @@ Cbar.q50.mean = matrix(apply(abs(Cbar.q50),2,mean),ncol=M0$N)[-1,-1]
 ## dynamical interaction network (DIN) plot
 .plot.DIN(Jbar.q50.mean,Cbar.q50.mean,labels=colnames(M0$TS)[-1])
 
-## visualise dYdt functions
-i=2
-for(i in c(2,3))
-{
-	dYdt = function(x){M0$.Ydot(c(0,x[1],x[2]),M0$Theta[-M0$i_init])[i]}
-	.plotMat(lims=rbind(c(-2,2),c(-2,2)),func=dYdt)
-}
-
-## pairwise phase space (PPS) plot
-dYdt = function(x){M0$.Ydot(c(0,x[1],x[2]),M0$Theta[-M0$i_init])}
-.plot.PPS(2,3,c(2,3),dYdt,rbind(c(-2,2),c(-2,2)))
-
-## find equilibrium
-Y_eq = rnorm(M0$N-1,0,1)
-dYdt = function(x){sum((M0$.Ydot(c(0,x),M0$Theta[-M0$i_init]))^2)}
-Y_eq = .fit(Y_eq,dYdt,100)
-Y_eq_scaled = (Y_eq$par-(-2))/(2-(-2))
-points(Y_eq_scaled[1],Y_eq_scaled[2],col="red",pch=8,cex=2)
+# ## visualise dYdt functions
+# i=2
+# for(i in c(2,3))
+# {
+# 	dYdt = function(x){M0$.Ydot(c(0,x[1],x[2]),M0$Theta[-M0$i_init])[i]}
+# 	.plotMat(lims=rbind(c(-2,2),c(-2,2)),func=dYdt)
+# }
+# 
+# ## pairwise phase space (PPS) plot
+# dYdt = function(x){M0$.Ydot(c(0,x[1],x[2]),M0$Theta[-M0$i_init])}
+# .plot.PPS(2,3,c(2,3),dYdt,rbind(c(-2,2),c(-2,2)))
+# 
+# ## find equilibrium
+# Y_eq = rnorm(M0$N-1,0,1)
+# dYdt = function(x){sum((M0$.Ydot(c(0,x),M0$Theta[-M0$i_init]))^2)}
+# Y_eq = .fit(Y_eq,dYdt,100)
+# Y_eq_scaled = (Y_eq$par-(-2))/(2-(-2))
+# points(Y_eq_scaled[1],Y_eq_scaled[2],col="red",pch=8,cex=2)
 
 dev.off()
 
