@@ -42,7 +42,7 @@ M0 = NODE.init(TS=TS_,
 
 ## user defined parameters for the normal Bayesian model
 sd_lik = c(0.1,0.1,0.1)
-sd_prior_network = c(1.0,1.0,1.0)
+sd_prior_network = c(10.0,10.0,10.0)
 #
 ## initiate sd_lik
 sd_lik = rep(sd_lik,rep(M0$n,M0$N-1))
@@ -57,40 +57,25 @@ sd_prior_states  = as.vector(t(apply(M0$TS[,-1],2,sd))) # set sd_prior_states to
 sd_prior_network = rep(sd_prior_network,M0$dimVect[-1]) 
 sd_prior         = c(sd_prior_states,sd_prior_network)
 
-# ## custom NODE system
-# ## goal: NODE equation system with each NODE being defined as a SLP, i.e. Ydot_i = SLP_i(state,Omega)
-# NODE.Ydot = function(state,OmegaList)
-# {	
-#   Ydot = 1 # i = 1 is time => dY/dt[1] = 1
-#   for(i in 2:N) 
-#   {
-#     Ydot[i] = SLP(state[M0$SLPinputStateList[[i]]],OmegaList[[i]],M0$SLPspecMat[i,],M0$SLPfsigmaList[[i]])*state[i]
-#   }
-#   return(Ydot)
-# }
-# M0$NODE.Ydot = NODE.Ydot
-
 ## custom NODE Ydot
-## goal: NODE equation system with each NODE being defined as a SLP, i.e. Ydot_i = SLP_i(state,Omega)
+M0$D = M0$D*2
 NODE.Ydot = function(state,OmegaList)
 {	
   Ydot    = 1 # i = 1 is time => dY/dt[1] = 1
-  Ydot[2] = (SLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),f_sigmaList[[1]])+SLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),f_sigmaList[[5]]))*state[2]
-  Ydot[3] = (SLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),f_sigmaList[[1]])+SLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),f_sigmaList[[5]]))*state[3]
-  Ydot[4] = (SLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),f_sigmaList[[1]])+SLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),f_sigmaList[[5]]))*state[4]
+  Ydot[2] = (SLP(state[c(2,3,4)],OmegaList[[2]][1:(M0$D/2)],c(3,10,1),f_sigmaList[[1]]) + SLP(state[c(2,3,4)],OmegaList[[2]][(M0$D/2+1):M0$D],c(3,10,1),f_sigmaList[[5]]))*state[2]
+  Ydot[3] = (SLP(state[c(2,3,4)],OmegaList[[3]][1:(M0$D/2)],c(3,10,1),f_sigmaList[[1]]) + SLP(state[c(2,3,4)],OmegaList[[3]][(M0$D/2+1):M0$D],c(3,10,1),f_sigmaList[[5]]))*state[3]
+  Ydot[4] = (SLP(state[c(2,3,4)],OmegaList[[4]][1:(M0$D/2)],c(3,10,1),f_sigmaList[[1]]) + SLP(state[c(2,3,4)],OmegaList[[4]][(M0$D/2+1):M0$D],c(3,10,1),f_sigmaList[[5]]))*state[4]
   return(Ydot)
 }
 M0$NODE.Ydot = NODE.Ydot
-M0$D = M0$D*2
 
-## custom NODE.J
-## goal: compute Jacobian matrix associated withe the NODE system above, i.e. J = [d(dY_i/dt)/dY_j]_ij 
+## custom NODE Jacobian
 NODE.J = function(state,OmegaList)
 {	
   J = matrix(0,N,N) # i = 1 is time => J[1,] = d(dY/dt_1)/dY_1, d(dY/dt_1)/dY[2], ... = 0
-  J[2,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[2]],c(3,10,1),df_sigmaList[[5]])
-  J[3,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[3]],c(3,10,1),df_sigmaList[[5]])
-  J[4,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[4]],c(3,10,1),df_sigmaList[[5]])
+  J[2,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[2]][1:(M0$D/2)],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[2]][(M0$D/2+1):M0$D],c(3,10,1),df_sigmaList[[5]])
+  J[3,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[3]][1:(M0$D/2)],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[3]][(M0$D/2+1):M0$D],c(3,10,1),df_sigmaList[[5]])
+  J[4,c(2,3,4)] = dSLP(state[c(2,3,4)],OmegaList[[4]][1:(M0$D/2)],c(3,10,1),df_sigmaList[[1]]) + dSLP(state[c(2,3,4)],OmegaList[[4]][(M0$D/2+1):M0$D],c(3,10,1),df_sigmaList[[5]])
   return(J)
 }
 
@@ -114,7 +99,7 @@ NODE.J = function(state,OmegaList)
 #             )[[1]]
 # }
 # Omega = rnorm(M0$D-(M0$N-1),0,0.1); print(error.prefit(Omega))
-# optList = .fit(Omega,error.prefit,10)
+# optList = .fit(Omega,error.prefit,20)
 # Omega = optList$par
 
 ## fit
@@ -136,7 +121,7 @@ optList = .fit(M0$Theta,error.fit,1000)
 M0$Theta = optList$par
 
 ## estimate error with ABC
-chainList = .ABC(M0$Theta,error.fit,10,noise=0.001,threshold=0.5)
+chainList = .ABC(M0$Theta,error.fit,100,noise=0.001,threshold=0.5)
 M0$chain = chainList$chain
 
 ## save model
