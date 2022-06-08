@@ -114,7 +114,7 @@ error.fit = function(Omega)
                          sd_prior  = sd_prior
                          )[[1]]
 } 
-M0$Theta = c(mu_prior_states,rnorm(M0$D-(M0$N-1),0,0.001)) # Theta = rnorm(M0$D,0,0.01)
+M0$Theta = c(mu_prior_states,rnorm(M0$D-(M0$N-1),0,0.01)) # Theta = rnorm(M0$D,0,0.01)
 # load("model.RData")
 error.fit(M0$Theta)
 optList = .fit(M0$Theta,error.fit,1000)
